@@ -26,13 +26,14 @@
   </div>
 </template>
 <script>
-import _ from 'lodash'
+import cloneDeep from 'lodash/cloneDeep'
 import path from 'path'
 import fse from 'fs-extra'
 import ImageCanvas from './components/ImageCanvas'
 import store from '@/store'
 import { debounce } from '@/utils'
 import { getDirectoryPath } from '@/utils/file'
+import { ensureUniqueCanvasNames, getGridStyle, getLayoutMetrics, getSmartLayout } from '@/utils/layout'
 import { SnapshotHelper } from '@/tools/compress'
 import * as GLOBAL_CONSTANTS from '@/constants'
 import { createNamespacedHelpers } from 'vuex'
@@ -95,25 +96,8 @@ export default {
     }
     // 使用智能布局 如果已选少 则自动优化布局 使用当前数量X1的布局
     else if (!isNaN(this.$route.query?.groupSize) || this.imageList.length <= 4) {
-      let smartLayout
       const num = Number(this.$route.query?.groupSize) || this.imageList.length
-      switch (num) {
-        case 1:
-          smartLayout = GLOBAL_CONSTANTS.LAYOUT_1X1
-          break
-        case 2:
-          smartLayout = GLOBAL_CONSTANTS.LAYOUT_1x2
-          break
-        case 3:
-          smartLayout = GLOBAL_CONSTANTS.LAYOUT_1X3
-          break
-        case 4:
-          smartLayout = GLOBAL_CONSTANTS.LAYOUT_2X2
-          break
-        default:
-          smartLayout = this.imageConfig.layout
-      }
-      this.setImageConfig({ layout: smartLayout })
+      this.setImageConfig({ layout: getSmartLayout(num, this.imageConfig.layout) })
       // this.setSnapshotConfig({ layout: smartLayout });
     }
   },
@@ -143,9 +127,7 @@ export default {
     },
     // 每组图片数量
     groupCount() {
-      const str = this.currentLayout,
-        len = str.length
-      return str[len - 3] * str[len - 1]
+      return getLayoutMetrics(this.currentLayout).groupCount
     },
     // 当前组的图片列表
     imageGroupList() {
@@ -154,16 +136,7 @@ export default {
         : []
     },
     containerStyle() {
-      const rows = parseInt(this.currentLayout[0])
-      const columns = parseInt(this.currentLayout[2])
-      const rowGap = 0,
-        columnGap = 0
-      return {
-        display: 'grid',
-        gridTemplateRows: `repeat(${rows}, 1fr)`,
-        gridTemplateColumns: `repeat(${columns}, 1fr)`,
-        gap: `${rowGap} ${columnGap}`
-      }
+      return getGridStyle(this.currentLayout)
       // switch (this.currentLayout) {
       //   case GLOBAL_CONSTANTS.LAYOUT_1X1:
       //     return {
@@ -327,7 +300,7 @@ export default {
     async share() {
       this.$message.info(i18nRender(`image.toolbar.snapshotGenerating`))
       // shareProject
-      const configObj = _.cloneDeep(this.$store.state)
+      const configObj = cloneDeep(this.$store.state)
       delete configObj.videoStore
       let snapshotMode = false
       const shareProject = GLOBAL_CONSTANTS.SHARE_PROJECT_DEFAULT_PROPS()
@@ -361,13 +334,7 @@ export default {
       })
       if (!snapshotMode) {
         try {
-          let depth = 2
-          while (_.unionBy(shareProject.canvas, 'name').length < shareProject.canvas.length) {
-            shareProject.canvas.forEach((canvas) => {
-              canvas.name = canvas.path.split(GLOBAL_CONSTANTS.DELIMITER).slice(-depth).join('-')
-            })
-            depth++
-          }
+          ensureUniqueCanvasNames(shareProject.canvas)
         } catch (error) {
           console.error(error)
         }
@@ -396,13 +363,13 @@ export default {
     },
     calcWidth() {
       const containerWidth = document.body.clientWidth
-      return containerWidth / parseInt(this.currentLayout[2])
+      return containerWidth / getLayoutMetrics(this.currentLayout).columns
     },
     calcHeight() {
       const toolbarInfo = document.getElementsByClassName('toolbar')[0].getBoundingClientRect()
       const headerInfo = document.getElementsByClassName('header')[0].getBoundingClientRect()
       const containerHeight = document.body.clientHeight - toolbarInfo.height - headerInfo.height
-      return containerHeight / parseInt(this.currentLayout[0])
+      return containerHeight / getLayoutMetrics(this.currentLayout).rows
     },
     setOverLay({ direction, status }) {
       const handlecover = this.handleCompareOptions(direction)

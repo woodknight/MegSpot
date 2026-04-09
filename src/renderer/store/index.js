@@ -1,7 +1,8 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
+import intersectionBy from 'lodash/intersectionBy'
+import unionBy from 'lodash/unionBy'
 import { isExist } from '../utils/file'
-import _ from 'lodash'
 
 // 注释这个的原因是因为会导致vuex操作失败
 import PersistedState from 'vuex-electron-store'
@@ -29,9 +30,9 @@ const checkStore = function (pathList = [], removeFnName = '') {
 
 const checkHotkeysStore = () => {
   const validHotkeys = preferenceStore.preference.hotkeys.length
-    ? _.intersectionBy(preferenceStore.preference.hotkeys, DEFAULT_HOTKEYS, 'name')
+    ? intersectionBy(preferenceStore.preference.hotkeys, DEFAULT_HOTKEYS, 'name')
     : []
-  const newHotkeys = _.unionBy(validHotkeys, DEFAULT_HOTKEYS, 'name')
+  const newHotkeys = unionBy(validHotkeys, DEFAULT_HOTKEYS, 'name')
   store.dispatch('preferenceStore/setPreference', {
     hotkeys: newHotkeys
   })

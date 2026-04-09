@@ -37,9 +37,10 @@
 <script>
 import VideoCanvas from './components/videoCanvas'
 import Sticky from '@/components/sticky'
-import _ from 'lodash'
+import cloneDeep from 'lodash/cloneDeep'
 import VideoProgressBar from './components/videoProgressBar'
 import { debounce } from '@/utils'
+import { ensureUniqueCanvasNames, getGridStyle, getLayoutMetrics, getSmartLayout } from '@/utils/layout'
 import { i18nRender } from '@/lang'
 import * as GLOBAL_CONSTANTS from '@/constants'
 import { SnapshotHelper } from '@/tools/compress'
@@ -96,25 +97,8 @@ export default {
     this.setVideoConfig({ currentTime: 0 })
     // 使用智能布局 如果已选少 则自动优化布局 使用当前数量X1的布局
     if (!isNaN(this.$route.query?.groupSize) || this.videoList.length <= 4) {
-      let smartLayout
       const num = Number(this.$route.query?.groupSize) || this.videoList.length
-      switch (num) {
-        case 1:
-          smartLayout = GLOBAL_CONSTANTS.LAYOUT_1X1
-          break
-        case 2:
-          smartLayout = GLOBAL_CONSTANTS.LAYOUT_1x2
-          break
-        case 3:
-          smartLayout = GLOBAL_CONSTANTS.LAYOUT_1X3
-          break
-        case 4:
-          smartLayout = GLOBAL_CONSTANTS.LAYOUT_2X2
-          break
-        default:
-          smartLayout = this.videoConfig.layout
-      }
-      this.setVideoConfig({ layout: smartLayout })
+      this.setVideoConfig({ layout: getSmartLayout(num, this.videoConfig.layout) })
     }
   },
   mounted() {
@@ -138,9 +122,7 @@ export default {
     ...preferenceMapGetters(['preference']),
     // 每组图片数量
     groupCount() {
-      const str = this.videoConfig.layout,
-        len = str.length
-      return str[len - 3] * str[len - 1]
+      return getLayoutMetrics(this.videoConfig.layout).groupCount
     },
     // 当前组的图片列表
     videoGroupList() {
@@ -149,16 +131,7 @@ export default {
         : []
     },
     containerStyle() {
-      const rows = parseInt(this.videoConfig.layout[0])
-      const columns = parseInt(this.videoConfig.layout[2])
-      const rowGap = 0,
-        columnGap = 0
-      return {
-        display: 'grid',
-        gridTemplateRows: `repeat(${rows}, 1fr)`,
-        gridTemplateColumns: `repeat(${columns}, 1fr)`,
-        gap: `${rowGap} ${columnGap}`
-      }
+      return getGridStyle(this.videoConfig.layout)
       // switch (this.videoConfig.layout) {
       //   case GLOBAL_CONSTANTS.LAYOUT_1X1:
       //     return {
@@ -261,20 +234,20 @@ export default {
     },
     calcCanvasSize() {
       this.canvasWidth = this.calcWidth()
-      this.subVideoControlMenu = 512 * parseInt(this.videoConfig.layout[0]) <= this.containerWidth
+      this.subVideoControlMenu = 512 * getLayoutMetrics(this.videoConfig.layout).rows <= this.containerWidth
       this.canvasHeight = this.calcHeight() - 18
     },
     calcWidth() {
       const containerWidth = document.body.clientWidth
       this.containerWidth = containerWidth
-      return containerWidth / parseInt(this.videoConfig.layout[2])
+      return containerWidth / getLayoutMetrics(this.videoConfig.layout).columns
     },
     calcHeight() {
       const toolbarInfo = document.getElementsByClassName('toolbar')[0].getBoundingClientRect()
       const headerInfo = document.getElementsByClassName('header')[0].getBoundingClientRect()
       const containerHeight = document.body.clientHeight - toolbarInfo.height - headerInfo.height
       this.containerHeight = containerHeight
-      return containerHeight / parseInt(this.videoConfig.layout[0])
+      return containerHeight / getLayoutMetrics(this.videoConfig.layout).rows
     },
     setOverLay({ direction, status }) {
       const handlecover = this.handleCompareOptions(direction)
@@ -439,7 +412,7 @@ export default {
       const canvasViews = this.$refs['video_canvas']
       const twoCanvas = (
         await Promise.allSettled(
-          canvasViews.slice(0, 2).map(async (canvas,index) => {
+          canvasViews.slice(0, 2).map(async (canvas, index) => {
             const shareCanvas = {
               index,
               name: '',
@@ -480,7 +453,7 @@ export default {
       // console.log('share', this.$refs['video_canvas'])
       this.$message.info(i18nRender(`image.toolbar.snapshotGenerating`))
       // shareProject
-      const configObj = _.cloneDeep(this.$store.state)
+      const configObj = cloneDeep(this.$store.state)
       Object.assign(configObj, { imageStore: configObj.videoStore })
       delete configObj.videoStore
       let snapshotMode = false
@@ -516,13 +489,7 @@ export default {
       })
       if (!snapshotMode) {
         try {
-          let depth = 2
-          while (_.unionBy(shareProject.canvas, 'name').length < shareProject.canvas.length) {
-            shareProject.canvas.forEach((canvas) => {
-              canvas.name = canvas.path.split(GLOBAL_CONSTANTS.DELIMITER).slice(-depth).join('-')
-            })
-            depth++
-          }
+          ensureUniqueCanvasNames(shareProject.canvas)
         } catch (error) {
           console.error(error)
         }
@@ -562,7 +529,7 @@ export default {
     },
     //获取列数
     getColumnLine() {
-      return parseInt(this.videoConfig.layout[2])
+      return getLayoutMetrics(this.videoConfig.layout).columns
     }
   }
 }

@@ -39,11 +39,15 @@ class Performance {
    * @returns {void}
    */
   getMemoryInfo() {
-    let memoryInfo = {}
     if (window.performance && window.performance.memory) {
-      memoryInfo = window.performance.memory
+      return window.performance.memory
     }
-    return memoryInfo
+
+    return {
+      jsHeapSizeLimit: 0,
+      totalJSHeapSize: 0,
+      usedJSHeapSize: 0
+    }
   }
 
   /**
@@ -60,7 +64,12 @@ export function toMBSize(byteSize) {
 }
 
 export const getPerformance = (toMB = true) => {
-  const { jsHeapSizeLimit, totalJSHeapSize, usedJSHeapSize } = performance.memory
+  const memory = performance.memory || {
+    jsHeapSizeLimit: 0,
+    totalJSHeapSize: 0,
+    usedJSHeapSize: 0
+  }
+  const { jsHeapSizeLimit, totalJSHeapSize, usedJSHeapSize } = memory
   const data = JSON.parse(JSON.stringify(performance))
   data.memory = {
     jsHeapSizeLimit: toMB ? Math.ceil(toMBSize(jsHeapSizeLimit)) : jsHeapSizeLimit,

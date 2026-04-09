@@ -1,15 +1,18 @@
 'use strict'
 import path from 'path'
 import { cmdArg } from './services/cmdParse'
-const { app, protocol } = require('electron')
+const { app, protocol, session } = require('electron')
 import PersistedState from 'vuex-electron-store'
 import initWindow from './services/windowManager'
 import DisableButton from './config/DisableButton'
-const { session } = require('electron')
 // import electronDevtoolsInstaller, {
 //   VUEJS_DEVTOOLS
 // } from 'electron-devtools-installer';
 import { NO_CACHE_FILE_PROTOCOL } from '@/constants'
+
+const MEGSPOT_PROTOCOL = 'megspot'
+const IS_DEVELOPMENT = process.env.NODE_ENV === 'development'
+const NO_CACHE_PREFIX = `${NO_CACHE_FILE_PROTOCOL}://`
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -17,8 +20,7 @@ protocol.registerSchemesAsPrivileged([
     privileges: { bypassCSP: true }
   }
 ])
-// app.disableHardwareAcceleration(); // 禁用gpu加速  解决图片拖动卡顿问题
-if (cmdArg.h) {
+function printHelpAndExit() {
   console.log(`
 MegSpot支持linux命令启动方便用户快捷访问。可以通过参数快捷进入图片视频的文件选取和比较页面。
 Detail: https://github.com/MegEngine/MegSpot/wiki/%E5%91%BD%E4%BB%A4%E8%A1%8C%E6%93%8D%E4%BD%9C
@@ -40,31 +42,24 @@ advise:
   `)
   app.exit()
 }
-app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport') // 启用H.265解码
-require('@electron/remote/main').initialize() // init @electron/remote
-PersistedState.initRenderer() // init vuex-electron-store
-console.log('cmdArg', cmdArg)
-function onAppReady() {
-  initWindow()
-  DisableButton.Disablef12()
-  if (process.env.NODE_ENV === 'development') {
-    const { VUEJS_DEVTOOLS } = require('electron-devtools-vendor') // Vue2 Extension
-    session.defaultSession
-      .loadExtension(path.resolve(VUEJS_DEVTOOLS), {
-        allowFileAccess: true
-      })
-      .then(() => {
-        console.log('已安装: vue-devtools')
-      })
-      .catch((err) => {
-        console.error('拓展安装失败', err)
-      })
-    // electronDevtoolsInstaller(VUEJS_DEVTOOLS)
-    //   .then(name => console.log(`installed: ${name}`))
-    //   .catch(err => console.log('Unable to install `vue-devtools`: \n', err));
-  }
+
+function installDevtools() {
+  const { VUEJS_DEVTOOLS } = require('electron-devtools-vendor')
+  return session.defaultSession
+    .loadExtension(path.resolve(VUEJS_DEVTOOLS), {
+      allowFileAccess: true
+    })
+    .then(() => {
+      console.log('已安装: vue-devtools')
+    })
+    .catch((err) => {
+      console.error('拓展安装失败', err)
+    })
+}
+
+function registerNoCacheFileProtocol() {
   const registerSucceed = protocol.registerFileProtocol(NO_CACHE_FILE_PROTOCOL, (request, callback) => {
-    const url = decodeURI(request.url).substr(`${NO_CACHE_FILE_PROTOCOL}://`.length)
+    const url = decodeURI(request.url).slice(NO_CACHE_PREFIX.length)
     callback({
       path: url,
       headers: {
@@ -72,10 +67,46 @@ function onAppReady() {
       }
     })
   })
-  if (!registerSucceed) console.error('Failed to register protocol')
+
+  if (!registerSucceed) {
+    console.error('Failed to register protocol')
+  }
+
   protocol.interceptFileProtocol('file', (request, callback) => {
     callback(request)
   })
+}
+
+function registerAppProtocolClient() {
+  if (IS_DEVELOPMENT && process.platform === 'win32') {
+    app.setAsDefaultProtocolClient(MEGSPOT_PROTOCOL, process.execPath, [path.resolve(process.argv[1])])
+    return
+  }
+
+  app.setAsDefaultProtocolClient(MEGSPOT_PROTOCOL)
+}
+
+// app.disableHardwareAcceleration(); // 禁用gpu加速  解决图片拖动卡顿问题
+if (cmdArg.h) {
+  printHelpAndExit()
+}
+
+app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport') // 启用H.265解码
+require('@electron/remote/main').initialize() // init @electron/remote
+PersistedState.initRenderer() // init vuex-electron-store
+console.log('cmdArg', cmdArg)
+
+function onAppReady() {
+  initWindow()
+  DisableButton.Disablef12()
+  if (IS_DEVELOPMENT) {
+    installDevtools()
+    // electronDevtoolsInstaller(VUEJS_DEVTOOLS)
+    //   .then(name => console.log(`installed: ${name}`))
+    //   .catch(err => console.log('Unable to install `vue-devtools`: \n', err));
+  }
+
+  registerNoCacheFileProtocol()
 }
 // 禁止缓存
 app.isReady() ? onAppReady() : app.on('ready', onAppReady)
@@ -89,10 +120,5 @@ app.on('window-all-closed', () => {
 app.on('browser-window-created', () => {
   // console.log('window-created');
 })
-const MEGSPOT = 'megspot'
-if (process.env.NODE_ENV === 'development' && process.platform === 'win32') {
-  // 设置electron.exe 和 app的路径
-  app.setAsDefaultProtocolClient(MEGSPOT, process.execPath, [path.resolve(process.argv[1])])
-} else {
-  app.setAsDefaultProtocolClient(MEGSPOT)
-}
+
+registerAppProtocolClient()

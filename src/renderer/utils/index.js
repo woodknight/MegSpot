@@ -1,4 +1,5 @@
-import { throttle as lodashThrottle, debounce as lodashDebounce } from 'lodash'
+import lodashDebounce from 'lodash/debounce'
+import lodashThrottle from 'lodash/throttle'
 export function throttle(wait, fun, option = {}) {
   return lodashThrottle(fun, wait, option)
 }
@@ -7,7 +8,7 @@ export function debounce(wait, fun, option = {}) {
   return lodashDebounce(fun, wait, option)
 }
 export function parseTime(time, cFormat) {
-  if (arguments.length === 0) {
+  if (typeof time === 'undefined' || time === null) {
     return null
   }
   const format = cFormat || '{y}-{m}-{d} {h}:{i}:{s}'

@@ -174,7 +174,7 @@
 const { dialog } = require('@electron/remote')
 const { shell, ipcRenderer } = require('electron')
 import fse from 'fs-extra'
-import _ from 'lodash'
+import cloneDeep from 'lodash/cloneDeep'
 import ShowPath from '@/components/show-path'
 const appVersion = require('@/../../package.json').version
 const { releaseNotes, releaseDate } = require('@/../../package.json').build.releaseInfo
@@ -423,7 +423,7 @@ export default {
         })
     },
     settingsExport() {
-      const obj = _.cloneDeep(this.$store.state)
+      const obj = cloneDeep(this.$store.state)
       this.saveFile(obj)
     },
     generateRowId(rowIndex, index = '') {
