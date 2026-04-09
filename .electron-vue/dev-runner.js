@@ -2,6 +2,8 @@
 
 process.env.NODE_ENV = 'development';
 
+require('./node22-compat');
+
 const chalk = require('chalk');
 const electron = require('electron');
 const path = require('path');
@@ -166,7 +168,10 @@ function startElectron() {
     args = args.concat(process.argv.slice(2));
   }
 
-  electronProcess = spawn(electron, args);
+  const childEnv = { ...process.env };
+  delete childEnv.ELECTRON_RUN_AS_NODE;
+
+  electronProcess = spawn(electron, args, { env: childEnv });
 
   electronProcess.stdout.on('data', data => {
     electronLog(removeJunk(data), 'blue');

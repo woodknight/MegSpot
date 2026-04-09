@@ -2,6 +2,8 @@
 
 process.env.NODE_ENV = 'production'
 
+require('./node22-compat')
+
 const chalk = require('chalk')
 const del = require('del')
 const webpack = require('webpack')
