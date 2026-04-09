@@ -4,7 +4,7 @@
   "author": "weiyajun <weiyajun@megvii.com>",
   "description": "A tool to improve the viewing of pictures and videos by researchers",
   "homepage": "https://github.com/MegEngine/MegSpot",
-  "license": "Apache License Version 2.0",
+  "license": "Apache-2.0",
   "main": "./dist/electron/main.js",
   "scripts": {
     "dev": "cross-env BUILD_TARGET=clean node .electron-vue/build.js &&  node .electron-vue/dev-runner.js",

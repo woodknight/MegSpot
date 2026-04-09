@@ -20,6 +20,34 @@ const rendererConfig = require('./webpack.renderer.config');
 let electronProcess = null;
 let manualRestart = false;
 let hotMiddleware;
+const verboseLogs = process.env.MEGSPOT_VERBOSE_LOGS === '1';
+
+function formatStatsSummary(stats) {
+  const info = stats.toJson({
+    all: false,
+    builtAt: true,
+    errors: true,
+    timings: true,
+    warnings: true
+  });
+
+  const summary = [];
+  if (typeof info.time === 'number') {
+    summary.push(`built in ${info.time}ms`);
+  }
+  if (info.errors && info.errors.length) {
+    summary.push(`${info.errors.length} error(s)`);
+  }
+  if (info.warnings && info.warnings.length) {
+    summary.push(`${info.warnings.length} warning(s)`);
+  }
+
+  return {
+    errors: info.errors || [],
+    summary: summary.join(', ') || 'build finished',
+    warnings: info.warnings || []
+  };
+}
 
 function logStats(proc, data) {
   let log = '';
@@ -32,15 +60,28 @@ function logStats(proc, data) {
   log += '\n\n';
 
   if (typeof data === 'object') {
-    data
-      .toString({
-        colors: true,
-        chunks: false
-      })
-      .split(/\r?\n/)
-      .forEach(line => {
-        log += '  ' + line + '\n';
-      });
+    const { errors, summary, warnings } = formatStatsSummary(data);
+
+    log += `  ${summary}\n`;
+
+    if (verboseLogs || errors.length || warnings.length) {
+      log += '\n';
+      data
+        .toString({
+          assets: false,
+          children: false,
+          chunks: false,
+          colors: true,
+          entrypoints: false,
+          modules: false
+        })
+        .split(/\r?\n/)
+        .forEach(line => {
+          if (line.trim()) {
+            log += '  ' + line + '\n';
+          }
+        });
+    }
   } else {
     log += `  ${data}\n`;
   }
@@ -65,6 +106,30 @@ function removeJunk(chunk) {
 
     // Example: ALSA lib confmisc.c:767:(parse_card) cannot find card '0'
     if (/ALSA lib [a-z]+\.c:\d+:\([a-z_]+\)/.test(chunk)) {
+      return false;
+    }
+
+    if (/Debugger listening on ws:\/\//.test(chunk)) {
+      return false;
+    }
+
+    if (/For help, see: https:\/\/nodejs\.org\/en\/docs\/inspector/.test(chunk)) {
+      return false;
+    }
+
+    if (/ExtensionLoadWarning/.test(chunk)) {
+      return false;
+    }
+
+    if (/Manifest version 2 is deprecated/.test(chunk)) {
+      return false;
+    }
+
+    if (/electron --trace-warnings/.test(chunk)) {
+      return false;
+    }
+
+    if (/MESA-LOADER: failed to open dri:/.test(chunk)) {
       return false;
     }
   }
@@ -97,8 +162,11 @@ function startRenderer() {
         });
 
         const server = new WebpackDevServer(compiler, {
+          clientLogLevel: 'silent',
           contentBase: path.join(__dirname, '../'),
+          noInfo: true,
           quiet: true,
+          stats: 'errors-only',
           before(app, ctx) {
             app.use(hotMiddleware);
             ctx.middleware.waitUntilValid(() => {
